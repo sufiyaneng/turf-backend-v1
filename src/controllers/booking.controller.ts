@@ -6,6 +6,7 @@ import {
 import Booking from "../models/booking.model";
 import { Request, Response, NextFunction, request } from "express";
 import { convertUtcToIst, formatDateTime } from "../utils";
+import moment from "moment";
 
 // creating a booking
 export const createBooking = async (req: Request, res: Response) => {
@@ -193,61 +194,89 @@ export const getTurfName = async (
 //   }
 // };
 
-export const getAllBookings = async (req: Request, res: Response): Promise<void> => {
-  const { error, value } = getAllBookingsSchema.validate(req.body);
+// export const getAllBookings = async (req: Request, res: Response): Promise<void> => {
+//   const { error, value } = getAllBookingsSchema.validate(req.body);
+//   try {
+//     const { type, bookerName, offset, limit, slotDate, bookingDate } = value;
+//     if (error) {
+//       throw new BadRequestError({ code: 400, message: error.message });
+//     }
+
+//     let query: any = {};
+
+//     // Filter by bookerName
+//     if (bookerName) {
+//       query.bookerName = bookerName;
+//     }
+
+//     // Filter by slotDate
+//     if (slotDate) {
+//       query.slotDate = new Date(slotDate);
+//     }
+
+//     // Filter by bookingDate (createdAt)
+//     if (bookingDate) {
+//       const startOfDay = new Date(bookingDate);
+//       startOfDay.setUTCHours(0, 0, 0, 0);
+//       const endOfDay = new Date(bookingDate);
+//       endOfDay.setUTCHours(23, 59, 59, 999);
+
+//       query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+//     }
+
+//     // Additional filters for type (UPCOMING or PREVIOUS)
+//     if (!bookerName && !slotDate && !bookingDate) {
+//       const { currDate } = formatDateTime(convertUtcToIst(new Date().toISOString()));
+//       if (type === "UPCOMING") {
+//         query.slotDate = { $gte: currDate };
+//       } else if (type === "PREVIOUS") {
+//         query.slotDate = { $lt: currDate };
+//       }
+//     }
+
+//     // Get the total count of matching documents
+//     const totalCount = await Booking.countDocuments(query);
+
+//     // Fetch paginated bookings
+//     const bookings = await Booking.find(query)
+//       .skip(offset || 0)
+//       .limit(limit || 10);
+
+//     res.status(200).json({
+//       bookings,
+//       totalCount,
+//     });
+//   } catch (err: any) {
+//     throw new BadRequestError({ code: 500, message: err.message });
+//   }
+// };
+
+export const getAllBookings = async (req: Request, res: Response) => {
+  const { type, slotDate } = req.body;
+
+  const isoDate = moment.utc(slotDate, "DD-MM-YYYY").toISOString();
+
+  const query = {
+    slotDate: isoDate,
+  };
+
   try {
-    const { type, bookerName, offset, limit, slotDate, bookingDate } = value;
-    if (error) {
-      throw new BadRequestError({ code: 400, message: error.message });
-    }
+    const response = await Booking.find(query);
 
-    let query: any = {};
+    const bookings = response && response.filter((booking:any)=>{
+      const cTime = moment().format('hh:mmA');
 
-    // Filter by bookerName
-    if (bookerName) {
-      query.bookerName = bookerName;
-    }
+      const startTime = moment(booking.startTime, 'hh:mmA');
+      const currentTime = moment(cTime, 'hh:mmA');
+      
+      console.log(currentTime);
 
-    // Filter by slotDate
-    if (slotDate) {
-      query.slotDate = new Date(slotDate);
-    }
+      if(type=== 'UPCOMING') return startTime.isAfter(currentTime);
+      else if(type === 'PREVIOUS') return startTime.isBefore(currentTime);
+    }) 
 
-    // Filter by bookingDate (createdAt)
-    if (bookingDate) {
-      const startOfDay = new Date(bookingDate);
-      startOfDay.setUTCHours(0, 0, 0, 0);
-      const endOfDay = new Date(bookingDate);
-      endOfDay.setUTCHours(23, 59, 59, 999);
-
-      query.createdAt = { $gte: startOfDay, $lte: endOfDay };
-    }
-
-    // Additional filters for type (UPCOMING or PREVIOUS)
-    if (!bookerName && !slotDate && !bookingDate) {
-      const { currDate } = formatDateTime(convertUtcToIst(new Date().toISOString()));
-      if (type === "UPCOMING") {
-        query.slotDate = { $gte: currDate };
-      } else if (type === "PREVIOUS") {
-        query.slotDate = { $lt: currDate };
-      }
-    }
-
-    // Get the total count of matching documents
-    const totalCount = await Booking.countDocuments(query);
-
-    // Fetch paginated bookings
-    const bookings = await Booking.find(query)
-      .skip(offset || 0)
-      .limit(limit || 10);
-
-    res.status(200).json({
-      bookings,
-      totalCount,
-    });
+    res.status(200).json(bookings);
   } catch (err: any) {
     throw new BadRequestError({ code: 500, message: err.message });
   }
 };
-
-
