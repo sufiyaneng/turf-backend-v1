@@ -1,6 +1,7 @@
 import BadRequestError from "../middlewares/BadRequestError";
 import {
   bookingSchema,
+  checkAvailabilitySchema,
   getAllBookingsSchema,
 } from "../validation/booking.schema";
 import Booking from "../models/booking.model";
@@ -124,133 +125,6 @@ export const getTurfName = async (
   }
 };
 
-// // Get all bookings with pagination
-// export const getAllBookings = async (request: Request, response: Response) => {
-//   try {
-
-//     // // Extract payload from the request body
-//     const { type, filters, bookingId } = request.body;
-
-//     // // Get the page and limit query parameters
-//     // const page = parseInt(request.query.page as string) || 1;
-//     // const limit = parseInt(request.query.limit as string) || 10;
-
-//     // // Calculate the number of documents to skip
-//     // const skip = (page - 1) * limit;
-
-//     // // Build query conditions
-//     // const query: any = {};
-//     // // Determine the current date
-//     // const currentDate = new Date();
-//     // if (type) {
-//     //   if (type === "upcoming") {
-//     //     query.slotDate = { $gte: currentDate };
-//     //   } else if (type === "previous") {
-//     //     query.slotDate = { $lt: currentDate };
-//     //   } else if (type === "cancelled") {
-//     //     query.slotDate = { $lt: currentDate };
-//     //     query.cancelled = true;
-//     //   }
-//     // }
-//     //  else {
-//     //    query.type = "upcoming";
-//     //  }
-
-//     // if (filters) {
-//     //   if (filters.bookingDate) {
-//     //     query.bookingDate = new Date(filters.bookingDate);
-//     //   }
-//     //   if (filters.slotDate) {
-//     //     query.slotDate = new Date(filters.slotDate);
-//     //   }
-//     // }
-
-//     // if (bookingId) {
-//     //   query.bookingId = bookingId;
-//     // }
-
-//     // // Find filtered bookings with pagination
-//     // const bookings = await Booking.find(query)
-//     //   .skip(skip)
-//     //   .limit(limit)
-//     //   .sort({ createdAt: -1 });
-
-//     // // Get the total count of bookings that match the query
-//     // const total = await Booking.countDocuments(query);
-
-//     // // Respond with the bookings and metadata
-//     // response.status(200).json({
-//     //   message: "Bookings retrieved successfully",
-//     //   data: bookings,
-//     //   meta: {
-//     //     total,
-//     //     page,
-//     //     limit,
-//     //     totalPages: Math.ceil(total / limit),
-//     //   },
-//     // });
-//   } catch (error: any) {
-//     response.status(500).json({ message: error.message });
-//   }
-// };
-
-// export const getAllBookings = async (req: Request, res: Response): Promise<void> => {
-//   const { error, value } = getAllBookingsSchema.validate(req.body);
-//   try {
-//     const { type, bookerName, offset, limit, slotDate, bookingDate } = value;
-//     if (error) {
-//       throw new BadRequestError({ code: 400, message: error.message });
-//     }
-
-//     let query: any = {};
-
-//     // Filter by bookerName
-//     if (bookerName) {
-//       query.bookerName = bookerName;
-//     }
-
-//     // Filter by slotDate
-//     if (slotDate) {
-//       query.slotDate = new Date(slotDate);
-//     }
-
-//     // Filter by bookingDate (createdAt)
-//     if (bookingDate) {
-//       const startOfDay = new Date(bookingDate);
-//       startOfDay.setUTCHours(0, 0, 0, 0);
-//       const endOfDay = new Date(bookingDate);
-//       endOfDay.setUTCHours(23, 59, 59, 999);
-
-//       query.createdAt = { $gte: startOfDay, $lte: endOfDay };
-//     }
-
-//     // Additional filters for type (UPCOMING or PREVIOUS)
-//     if (!bookerName && !slotDate && !bookingDate) {
-//       const { currDate } = formatDateTime(convertUtcToIst(new Date().toISOString()));
-//       if (type === "UPCOMING") {
-//         query.slotDate = { $gte: currDate };
-//       } else if (type === "PREVIOUS") {
-//         query.slotDate = { $lt: currDate };
-//       }
-//     }
-
-//     // Get the total count of matching documents
-//     const totalCount = await Booking.countDocuments(query);
-
-//     // Fetch paginated bookings
-//     const bookings = await Booking.find(query)
-//       .skip(offset || 0)
-//       .limit(limit || 10);
-
-//     res.status(200).json({
-//       bookings,
-//       totalCount,
-//     });
-//   } catch (err: any) {
-//     throw new BadRequestError({ code: 500, message: err.message });
-//   }
-// };
-
 export const getAllBookings = async (req: Request, res: Response) => {
   const { type, slotDate } = req.body;
 
@@ -269,8 +143,6 @@ export const getAllBookings = async (req: Request, res: Response) => {
       const startTime = moment(booking.startTime, 'hh:mmA');
       const currentTime = moment(cTime, 'hh:mmA');
       
-      console.log(currentTime);
-
       if(type=== 'UPCOMING') return startTime.isAfter(currentTime);
       else if(type === 'PREVIOUS') return startTime.isBefore(currentTime);
     }) 
@@ -280,3 +152,16 @@ export const getAllBookings = async (req: Request, res: Response) => {
     throw new BadRequestError({ code: 500, message: err.message });
   }
 };
+
+export const checkAvailability = async (req: Request, res: Response) => {
+  try{
+    const {value, error}= checkAvailabilitySchema.validate(req.body);
+    if(error) throw new BadRequestError({code:400, message:error.details[0].message});
+
+    res.status(200).json({message:"Slot is available"});
+
+  }catch(err:any){
+   throw new BadRequestError({code:500, message:err.message});
+  }
+};
+                                          

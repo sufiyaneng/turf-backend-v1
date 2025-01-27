@@ -44,3 +44,23 @@ export const getAllBookingsSchema = Joi.object<BookingPayload>({
     slotDate: Joi.alternatives().try(Joi.string(), Joi.valid(null)).label("Slot Date"),
     bookingDate: Joi.alternatives().try(Joi.string(), Joi.valid(null)).label("Booking Date"),
 });
+
+interface CheckAvailabilityPayload {
+  slotDate: string;
+  hours: number;
+}
+export const checkAvailabilitySchema = Joi.object<CheckAvailabilityPayload>({
+  slotDate: Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/) // Regex for "YYYY-MM-DD" format
+    .required()
+    .label("Slot Date")
+    .messages({
+      "any.required": "Slot Date is required.", // For missing value
+      "string.pattern.base": "Slot Date must be in the format 'YYYY-MM-DD'.", // For pattern mismatch
+    }),
+  hours: Joi.number()
+    .integer()
+    .positive()
+    .required()
+    .label("Hours"),
+});

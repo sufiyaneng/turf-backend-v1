@@ -12,6 +12,7 @@ export interface IUser extends Document {
   verificationCode:string;
   isVerified:boolean;
   turfId: Types.ObjectId;
+  userImage: string;
 }
 
 // Mongoose Schema for User
@@ -23,6 +24,7 @@ const UserSchema: Schema = new Schema({
   isVerified: { type: Boolean, default: false },
   verificationCode: { type: String },
   turfId: { type: Schema.Types.ObjectId, ref: "Turf", },
+  userImage: { type: String, required: false, default: "" },
 });
 
 // Pre-save middleware to hash the password

@@ -1,4 +1,5 @@
 import mongoose, { Types } from 'mongoose';
+import jwt from "jsonwebtoken";
 import { AccessToken } from './../../node_modules/mongodb/src/cmap/auth/mongodb_oidc/machine_workflow';
 import { Request, Response } from "express";
 import User,{ IUser } from "../models/user.model";
@@ -15,7 +16,7 @@ export const createUser = async (
   try {
     const { error, value } = userSchema.validate(req.body);
     if (error) {
-      throw new BadRequestError({code : 400, message: error.details[0].message });
+      throw new BadRequestError({code : 400, message: error.details[0].message }); 
     }
 
 
@@ -95,5 +96,41 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       res.status(201).json({ message: `Welcome back, ${user.name}!`, token:{accessToken, refreshToken}});
     } catch (err) {
       throw new BadRequestError({code : 500, message : "Server error"});
+    }
+  };
+
+  export const refreshToken = async (req: Request, res: Response): Promise<void> => {
+    const { refreshToken } = req.body;
+  
+    if (!refreshToken) {
+      throw new BadRequestError({ code: 400, message: "Refresh token is required." });
+    }
+  
+    try {
+      // Decode and verify the refresh token using SECRET_KEY
+      const decoded = jwt.verify(refreshToken, process.env.SECRET_KEY!) as {
+        turfId: string;
+        email: string;
+        userId: string;
+      };
+  
+      // Check if the user exists in the database
+      const user = await User.findById(decoded.userId);
+  
+      if (!user) {
+        throw new BadRequestError({ code: 404, message: "User not found." });
+      }
+  
+      // Generate new tokens using the existing payload
+      const { accessToken, refreshToken: newRefreshToken } = generateTokens({
+        turfId: user.turfId,
+        email: user.email,
+        userId: user._id as Types.ObjectId,
+      });
+  
+      // Send the new tokens to the client
+      res.status(200).json({ token: { accessToken, refreshToken: newRefreshToken } });
+    } catch (err) {
+      throw new BadRequestError({ code: 401, message: "Invalid or expired refresh token." });
     }
   };

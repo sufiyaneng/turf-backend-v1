@@ -23,6 +23,7 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@types/multer": "^1.4.12",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.1",
@@ -31,6 +32,7 @@
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.30.1",
     "mongoose": "^8.8.1",
+    "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.16",
     "otp-generator": "^4.0.1"
   }
