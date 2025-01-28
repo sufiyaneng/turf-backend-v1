@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import userRoutes from "./routes/user.route";
 import bookingRoutes from "./routes/booking.route";
 import profileRoutes from "./routes/profile.route";
+import cors from 'cors'
 import "express-async-errors";
 import dotenv from "dotenv";
 
@@ -11,7 +12,7 @@ dotenv.config({
 });
 
 const app = express();
-
+app.use(cors())
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
