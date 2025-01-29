@@ -1,32 +1,33 @@
-import mongoose, { Types } from 'mongoose';
+import mongoose, { Types } from "mongoose";
 import jwt from "jsonwebtoken";
-import { AccessToken } from './../../node_modules/mongodb/src/cmap/auth/mongodb_oidc/machine_workflow';
+import { AccessToken } from "./../../node_modules/mongodb/src/cmap/auth/mongodb_oidc/machine_workflow";
 import { Request, Response } from "express";
-import User,{ IUser } from "../models/user.model";
+import User, { IUser } from "../models/user.model";
 import Turf from "../models/turf.model";
 import otpGenerator from "otp-generator";
-import { userSchema } from "../validation/user.schema";
+import { forgotPasswordSchema, resetPasswordSchema, userSchema } from "../validation/user.schema";
 import BadRequestError from "../middlewares/BadRequestError";
-import { generateTokens } from "../utils";
+import { generateTokens, generateVerificationCode, sendEmail } from "../utils";
 
-export const createUser = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { error, value } = userSchema.validate(req.body);
     if (error) {
-      throw new BadRequestError({code : 400, message: error.details[0].message }); 
+      throw new BadRequestError({
+        code: 400,
+        message: error.details[0].message,
+      });
     }
-
-
 
     const existingUser = await User.findOne({ email: value.email });
     if (existingUser) {
-      throw new BadRequestError({code : 400, message : "User already exists"});
+      throw new BadRequestError({ code: 400, message: "User already exists" });
     }
 
-    const newUser = new User({...value, turfId: new mongoose.Types.ObjectId()});
+    const newUser = new User({
+      ...value,
+      turfId: new mongoose.Types.ObjectId(),
+    });
     console.log(newUser);
     await newUser.save();
 
@@ -41,8 +42,15 @@ export const createUser = async (
 
     await newTurf.save();
 
-    await newUser.updateOne({ turfId: newTurf._id });
+    const verificationCode = generateVerificationCode(12);
 
+    await newUser.updateOne({ turfId: newTurf._id, verificationCode });
+
+    sendEmail(
+      "makwork985@gmail.com",
+      "Email Verification",
+      `<a href="http://localhost:3000/auth/verify/${newUser._id}/${verificationCode}">Verify Now</a>`
+    );
     const { password, ...userResponse } = newUser.toObject();
 
     res.status(201).json({
@@ -50,87 +58,184 @@ export const createUser = async (
       user: userResponse,
     });
   } catch (err: any) {
-    throw new BadRequestError({code : 500, message : err.message});
+    throw new BadRequestError({ code: 500, message: err.message });
   }
 };
 
-export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
-    const { email, code } = req.body;
-  
-    try {
-      const user = await User.findOne({ email, verificationCode: code }) as IUser;
-  
-      if (!user) {
-        res.status(400).json({ message: "Invalid verification code or email." });
-        return;
-      }
-  
-      user.isVerified = true;
-      user.verificationCode = '';
-      await user.save();
-  
-      res.status(200).json({ message: "Email verified successfully." });
-    } catch (err) {
-      res.status(500).json({ message: "Server error", error: err });
+export const verifyEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { userId, verificationCode } = req.body;
+
+  try {
+    const user = (await User.findOne({
+      _id: userId,
+      verificationCode,
+    })) as IUser;
+
+    if (!user) {
+      res.status(400).json({ message: "Invalid verification code or email." });
+      return;
     }
-  };
+
+    user.isVerified = true;
+    user.verificationCode = "";
+    await user.save();
+
+    res.status(200).json({ message: "Email verified successfully." });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err });
+  }
+};
 
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
-    const { email, password } = req.body;
-  
-    try {
-      const user = await User.findOne({ email }) as IUser;
-  
-      if (!user) {
-        throw new BadRequestError({code : 404, message : "User does not exist, Please register first."});
-      }
-  
-      const isMatch = await user.comparePassword(password);
-  
-      if (!isMatch) {
-      throw new BadRequestError({code : 400, message : "Invalid  password."});
-      }
-      
-      const {accessToken, refreshToken} :{accessToken:string; refreshToken:string } = generateTokens({turfId: user.turfId as Types.ObjectId, email: user.email, userId: user._id as Types.ObjectId});   
+  const { email, password } = req.body;
 
-      res.status(201).json({ message: `Welcome back, ${user.name}!`, token:{accessToken, refreshToken}});
-    } catch (err) {
-      throw new BadRequestError({code : 500, message : "Server error"});
-    }
-  };
+  try {
+    const user = (await User.findOne({ email })) as IUser;
 
-  export const refreshToken = async (req: Request, res: Response): Promise<void> => {
-    const { refreshToken } = req.body;
-  
-    if (!refreshToken) {
-      throw new BadRequestError({ code: 400, message: "Refresh token is required." });
-    }
-  
-    try {
-      // Decode and verify the refresh token using SECRET_KEY
-      const decoded = jwt.verify(refreshToken, process.env.SECRET_KEY!) as {
-        turfId: string;
-        email: string;
-        userId: string;
-      };
-  
-      // Check if the user exists in the database
-      const user = await User.findById(decoded.userId);
-  
-      if (!user) {
-        throw new BadRequestError({ code: 404, message: "User not found." });
-      }
-  
-      // Generate new tokens using the existing payload
-      const { accessToken, refreshToken: newRefreshToken } = generateTokens({
-        turfId: user.turfId,
-        email: user.email,
-        userId: user._id as Types.ObjectId,
+    if (!user) {
+      throw new BadRequestError({
+        code: 404,
+        message: "User does not exist, Please register first.",
       });
-  
-      // Send the new tokens to the client
-      res.status(200).json({ token: { accessToken, refreshToken: newRefreshToken } });
-    } catch (err) {
-      throw new BadRequestError({ code: 401, message: "Invalid or expired refresh token." });
     }
-  };
+
+    const isMatch = await user.comparePassword(password);
+
+    if (!isMatch) {
+      throw new BadRequestError({ code: 400, message: "Invalid  password." });
+    }
+
+    if (!user.isVerified) {
+      throw new BadRequestError({ code: 400, message: "Please verify first" });
+    }
+
+    const {
+      accessToken,
+      refreshToken,
+    }: { accessToken: string; refreshToken: string } = generateTokens({
+      turfId: user.turfId as Types.ObjectId,
+      email: user.email,
+      userId: user._id as Types.ObjectId,
+    });
+
+    res
+      .status(201)
+      .json({
+        message: `Welcome back, ${user.name}!`,
+        token: { accessToken, refreshToken },
+      });
+  } catch (err) {
+    throw new BadRequestError({ code: 500, message: "Server error" });
+  }
+};
+
+export const refreshToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    throw new BadRequestError({
+      code: 400,
+      message: "Refresh token is required.",
+    });
+  }
+
+  try {
+    // Decode and verify the refresh token using SECRET_KEY
+    const decoded = jwt.verify(refreshToken, process.env.SECRET_KEY!) as {
+      turfId: string;
+      email: string;
+      userId: string;
+    };
+
+    // Check if the user exists in the database
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      throw new BadRequestError({ code: 404, message: "User not found." });
+    }
+
+    // Generate new tokens using the existing payload
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens({
+      turfId: user.turfId,
+      email: user.email,
+      userId: user._id as Types.ObjectId,
+    });
+
+    // Send the new tokens to the client
+    res
+      .status(200)
+      .json({ token: { accessToken, refreshToken: newRefreshToken } });
+  } catch (err) {
+    throw new BadRequestError({
+      code: 401,
+      message: "Invalid or expired refresh token.",
+    });
+  }
+};
+
+export const forgotPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { error, value }: { error: any; value: any } = forgotPasswordSchema.validate(
+    req.body
+  );
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.details[0].message });
+  }
+  const { email } = value;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user)
+      throw new BadRequestError({
+        code: 400,
+        message: error?.details?.[0]?.message,
+      });
+    const resetPassCode = generateVerificationCode(12);
+
+    user.resetPassCode = resetPassCode;
+    await user.save()
+    sendEmail(
+      "makwork985@gmail.com",
+      "Email Verification",
+      `<a href="http://localhost:3000/auth/reset-password/${user._id}/${resetPassCode}">Reset Password</a>`
+    );
+
+    res.status(200).json({message:'Password reset link sent to your mail.'})
+  } catch (err: any) {
+    throw new BadRequestError({ code: 500, message: "Internal server error." });
+  }
+};
+
+export const resetPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { error, value }: { error: any; value: any } = resetPasswordSchema.validate(
+    req.body
+  );
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.details[0].message });
+  }
+  const {userId, password, resetPassCode  } = value;
+try{
+  const user = (await User.findOne({
+    _id: userId,
+    resetPassCode,
+  })) as IUser;
+  user.password = password;
+  console.log(user)
+  await user.save();
+  res.status(200).json({message:'Password reset successful.'})
+}catch(err:any){
+  throw new BadRequestError({ code: 500, message: "Internal server error." });
+}
+
+};

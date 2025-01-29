@@ -10,6 +10,7 @@ export interface IUser extends Document {
   password: string;
   comparePassword(candidatePassword: string): Promise<boolean>;
   verificationCode:string;
+  resetPassCode:string;
   isVerified:boolean;
   turfId: Types.ObjectId;
   userImage: string;
@@ -23,6 +24,7 @@ const UserSchema: Schema = new Schema({
   password: { type: String, required: true },
   isVerified: { type: Boolean, default: false },
   verificationCode: { type: String },
+  resetPassCode:{type:String},
   turfId: { type: Schema.Types.ObjectId, ref: "Turf", },
   userImage: { type: String, required: false, default: "" },
 });

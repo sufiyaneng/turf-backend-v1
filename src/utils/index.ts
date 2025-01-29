@@ -1,19 +1,21 @@
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
+import CryptoJS from 'crypto-js';
 
 
 export const sendEmail = async (to: string, subject: string, text: string): Promise<void> => {
   const transporter = nodemailer.createTransport({
-    service: "gmail", // Use your email provider
+    host: "live.smtp.mailtrap.io", // Mailtrap SMTP server
+    port: 587, // Mailtrap port
     auth: {
-      user: process.env.EMAIL_USER, // Your email
-      pass: process.env.EMAIL_PASSWORD, // Your email password or app password
-    },
+      user: "smtp@mailtrap.io", // Replace with Mailtrap user
+      pass: "dd727c9a5c095e1941a9cae82259f0cd"  // Replace with Mailtrap password
+    }
   });
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: '"Synkerhub" hello@demomailtrap.com',
     to,
     subject,
     text,
@@ -62,4 +64,12 @@ export const convertUtcToIst = (utcIsoDate: string) => {
   const istIsoDate = istDate.toISOString().replace('Z', '+05:30');
 
   return istIsoDate;
+}
+
+export const generateVerificationCode = (length = 6) => {
+  const timestamp = Date.now().toString();
+  const randomString = Math.random().toString(36).substring(2, 15);
+  const hash = CryptoJS.SHA256(timestamp + randomString).toString(CryptoJS.enc.Hex);
+  
+  return hash.substring(0, length).toUpperCase(); // Ensuring uppercase for readability
 }

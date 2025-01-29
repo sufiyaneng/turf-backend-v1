@@ -1,12 +1,14 @@
 import { Router } from "express";
-import { createUser ,loginUser,refreshToken,verifyEmail } from "../controllers/user.controller";
+import { signup ,loginUser,refreshToken,verifyEmail, forgotPassword, resetPassword } from "../controllers/user.controller";
 
 const router = Router();
 
 // Define routes
-router.post("/users", createUser);
+router.post("/signup", signup);
 router.post("/login", loginUser);
-router.post("/users/verify-email", verifyEmail);
+router.post("/verify-email", verifyEmail);
+router.post("/forgot-password", forgotPassword)
+router.post("/reset-password",resetPassword)
 router.post("/refresh-token", refreshToken);
 
 
