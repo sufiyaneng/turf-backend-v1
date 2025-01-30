@@ -9,7 +9,7 @@ const router = Router();
 router.post("/createbooking",auth, createBooking);
 router.put('/updatebooking/:bookingId', auth,updateBooking);
 router.delete('/deletebooking/:bookingId', auth,deleteBooking);
-router.get('/turfname/:turfId',auth, getTurfName);
+router.get('/turfname',auth, getTurfName);
 router.post('/bookings', auth,getAllBookings);
 router.post('/check-availability', auth,checkAvailability);
 router.get('/statistics', auth,getBookingStats);

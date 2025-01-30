@@ -8,6 +8,8 @@ import Booking from "../models/booking.model";
 import { Request, Response, NextFunction, request } from "express";
 import { convertUtcToIst, formatDateTime } from "../utils";
 import moment from "moment-timezone";
+import Turf from "../models/turf.model";
+import { ITurf } from "../models/turf.model";
 
 // creating a booking
 export const createBooking = async (req: Request, res: Response) => {
@@ -90,6 +92,7 @@ export const getTurfName = async (
 ): Promise<boolean | any> => {
   try {
     const { turfId } = req.params;
+    // Find the booking by ID and populate the turf name
     const booking = await Booking.findOne({ turfId }).populate(
       "turfId",
       "name"
@@ -97,11 +100,9 @@ export const getTurfName = async (
     if (!booking) {
       throw new BadRequestError({ code: 404, message: "Turf not found" });
     }
-    const { _id, name } = booking.turfId as any;
+    const { name } = turf as ITurf;
     res.status(200).json({
-      message: "Turf name retrieved successfully",
       data: {
-        turfId: _id,
         turfName: name,
       },
     });
