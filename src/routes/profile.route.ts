@@ -8,8 +8,8 @@ const router = Router();
 
 // Define routes
 
-router.get('/userprofile/:turfId',auth, getUserProfileDetails);
-router.get('/turfprofile/:turfId',auth, getTurfDetails);
+router.get('/userprofile',auth, getUserProfileDetails);
+router.get('/turfprofile',auth, getTurfDetails);
 router.put('/edituserprofile',auth,uploadImage, editUserProfile);
 router.put('/editturfprofile',auth,uploadImage, editTurfProfile);
 
