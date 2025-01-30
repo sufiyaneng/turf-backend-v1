@@ -7,25 +7,21 @@ import {
 import Booking from "../models/booking.model";
 import { Request, Response, NextFunction, request } from "express";
 import { convertUtcToIst, formatDateTime } from "../utils";
-import moment from "moment";
+import moment from "moment-timezone";
 
 // creating a booking
 export const createBooking = async (req: Request, res: Response) => {
   try {
-    // Validate request payload with Joi
     const { error, value } = bookingSchema.validate(req.body);
 
     if (error) {
       throw new BadRequestError({ code: 400, message: error.message });
     }
 
-    // // Create a new booking instance using the validated data
     const newBooking = new Booking({ ...value, turfId: req.user.turfId });
 
-    // // Save the booking to the database
     const savedBooking = await newBooking.save();
 
-    // Respond with the created booking
     res.status(201).json({
       message: "Booking created successfully",
       data: savedBooking,
@@ -43,21 +39,18 @@ export const updateBooking = async (
 ): Promise<boolean | any> => {
   try {
     const { bookingId } = req.params;
-    // Validate request payload with Joi
     const { error, value } = bookingSchema.validate(req.body);
 
     if (error) {
       throw new BadRequestError({ code: 400, message: error.message });
     }
 
-    // // Find the booking by ID and update with new values
     const updatedBooking = await Booking.findByIdAndUpdate(bookingId, value);
 
     if (!updatedBooking) {
       throw new BadRequestError({ code: 404, message: "Booking not found" });
     }
 
-    // // Respond with the updated booking
     res.status(201).json({
       message: "Booking updated successfully",
       data: updatedBooking,
@@ -75,14 +68,12 @@ export const deleteBooking = async (
   try {
     const { bookingId } = req.params;
 
-    // Find and delete the booking by ID
     const deletedBooking = await Booking.findByIdAndDelete(bookingId);
 
     if (!deletedBooking) {
       throw new BadRequestError({ code: 404, message: "Booking not found" });
     }
 
-    // Respond with a success message
     res.status(200).json({
       message: "Booking deleted successfully",
     });
@@ -99,7 +90,6 @@ export const getTurfName = async (
 ): Promise<boolean | any> => {
   try {
     const { turfId } = req.params;
-    // Find the booking by ID and populate the turf name
     const booking = await Booking.findOne({ turfId }).populate(
       "turfId",
       "name"
@@ -164,4 +154,49 @@ export const checkAvailability = async (req: Request, res: Response) => {
    throw new BadRequestError({code:500, message:err.message});
   }
 };
+
+export const getBookingStats = async (req: Request, res: Response) => {
+   try {
+        const todayDate = moment().tz("UTC").startOf("day").toDate(); 
+        const tomorrowDate = moment().tz("UTC").add(1, "days").startOf("day").toDate();
+        const yesterdayDate = moment().tz("UTC").subtract(1, "days").startOf("day").toDate();
+
+        // Fetch booking counts
+        const [todaysBookings, tomorrowsBookings, yesterdaysBookings] = await Promise.all([
+            Booking.countDocuments({ slotDate: { $eq: todayDate } }),
+            Booking.countDocuments({ slotDate: { $eq: tomorrowDate } }),
+            Booking.countDocuments({ slotDate: { $eq: yesterdayDate } })
+        ]);
+
+        // Find the current live booking
+        const now = moment().tz("UTC").format("hh:mmA"); 
+        const liveBooking = await Booking.findOne({
+            slotDate: todayDate,
+            startTime: { $lte: now },
+            endTime: { $gte: now }
+        });
+
+        // Prepare response
+        const response: any[] = [
+            { title: "Today's Booking", count: todaysBookings },
+            { title: "Tomorrow Booking", count: tomorrowsBookings },
+            { title: "Yesterday Booking", count: yesterdaysBookings }
+        ];
+
+        // Add live booking if exists
+        if (liveBooking) {
+            response.push({
+                bookerName: liveBooking.bookerName,
+                startTime: liveBooking.startTime,
+                endTime: liveBooking.endTime,
+                status: "Live"
+            });
+        }
+
+        res.json(response);
+    } catch (error) {
+        console.error("Error fetching bookings:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+}
                                           
