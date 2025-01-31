@@ -6,6 +6,7 @@ import Turf from "../models/turf.model";
 import {
   forgotPasswordSchema,
   loginSchema,
+  refreshTokenSchema,
   resetPasswordSchema,
   signupSchema,
   verifyEmailSchema,
@@ -170,73 +171,56 @@ export const forgotPassword = async (
   res.status(200).json({ message: "Password reset link sent to your mail." });
 };
 
-export const resetPassword = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const resetPassword = async (req: Request, res: Response) => {
   const { error, value }: { error: any; value: any } =
     resetPasswordSchema.validate(req.body);
   if (error) {
     throw new BadRequestError({ code: 400, message: error.details[0].message });
   }
   const { userId, password, resetPassCode } = value;
-  try {
-    const user = (await User.findOne({
-      _id: userId,
-      resetPassCode,
-    })) as IUser;
-    user.password = password;
-    console.log(user);
-    await user.save();
-    res.status(200).json({ message: "Password reset successful." });
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: "Internal server error." });
-  }
+
+  const user = (await User.findOne({
+    _id: userId,
+    resetPassCode,
+  })) as IUser;
+
+  user.password = password;
+  await user.save();
+
+  res.status(200).json({ message: "Password reset successful." });
 };
 
-export const refreshToken = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const { refreshToken } = req.body;
-
-  if (!refreshToken) {
-    throw new BadRequestError({
-      code: 400,
-      message: "Refresh token is required.",
-    });
+export const refreshToken = async (req: Request, res: Response) => {
+  const { error, value }: { error: any; value: any } =
+    refreshTokenSchema.validate(req.body);
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.details[0].message });
   }
 
-  try {
-    // Decode and verify the refresh token using SECRET_KEY
-    const decoded = jwt.verify(refreshToken, process.env.SECRET_KEY!) as {
-      turfId: string;
-      email: string;
-      userId: string;
-    };
+  const { refreshToken } = value;
 
-    // Check if the user exists in the database
-    const user = await User.findById(decoded.userId);
+  // Decode and verify the refresh token using SECRET_KEY
+  const decoded = jwt.verify(refreshToken, process.env.SECRET_KEY!) as {
+    turfId: string;
+    email: string;
+    userId: string;
+  };
 
-    if (!user) {
-      throw new BadRequestError({ code: 404, message: "User not found." });
-    }
-
-    // Generate new tokens using the existing payload
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens({
-      turfId: user.turfId,
-      email: user.email,
-      userId: user._id as Types.ObjectId,
-    });
-
-    // Send the new tokens to the client
-    res
-      .status(200)
-      .json({ token: { accessToken, refreshToken: newRefreshToken } });
-  } catch (err) {
-    throw new BadRequestError({
-      code: 401,
-      message: "Invalid or expired refresh token.",
-    });
+  // Check if the user exists in the database
+  const user = await User.findById(decoded.userId);
+  if (!user) {
+    throw new BadRequestError({ code: 404, message: "User not found." });
   }
+
+  // Generate new tokens using the existing payload
+  const { accessToken, refreshToken: newRefreshToken } = generateTokens({
+    turfId: user.turfId,
+    email: user.email,
+    userId: user._id as Types.ObjectId,
+  });
+
+  // Send the new tokens to the client
+  res
+    .status(200)
+    .json({ token: { accessToken, refreshToken: newRefreshToken } });
 };
