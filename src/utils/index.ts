@@ -94,3 +94,62 @@ export const generateVerificationCode = (length = 6) => {
 
   return hash.substring(0, length).toUpperCase(); // Ensuring uppercase for readability
 };
+
+
+//generate slots
+
+export function generateTimeSlots(startTime:string, endTime:string, hours:number) {
+  const slots = [];
+  // Helper to convert 24hr format to Date object
+  function timeToDate(time:any) {
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(1970, 0, 1, hour, minute);
+  }
+  // Helper to convert Date object to 24hr format
+  function format24(date:any) {
+  return date.toISOString().slice(11, 16);
+  }
+  // Helper to convert Date object to 12hr format with AM/PM
+  function format12(date:any) {
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const period = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours.toString().padStart(2, "0")}:${minutes}${period}`;
+  }
+  let start = timeToDate(startTime);
+  const end = timeToDate(endTime === "00:00" ? "24:00" : endTime); // Handle midnight as 24:00
+  const increment = hours * 60 * 60 * 1000; // Convert hours to milliseconds
+  while (start.getTime() + increment <= end.getTime()) {
+  const next = new Date(start.getTime() + increment);
+  const value = `${format24(start)}-${format24(next)}`;
+  const label = `${format12(start)} - ${format12(next)}`;
+  const startTime = `${format24(start)}`;
+  const endTime = `${format24(next)}`;
+  slots.push({ value, label, startTime, endTime});
+  start = new Date(start.getTime() + 60 * 60 * 1000); // Increment by 1 hour
+  }
+  return slots;
+ }
+
+
+ // Convert time to a 24-hour format in minutes for easier comparison
+export const convertTimeToMinutes = (time:any) => {
+  const [hours, minutes] = time.split(':').map((num:any) => parseInt(num, 10));
+  return hours * 60 + minutes;
+ }
+ // Function to check if two time ranges overlap considering midnight
+ 
+ export const isOverlapping = (start1:any, end1:any, start2:any, end2:any) => {
+  // Convert times to minutes for easier comparison
+  let start1Minutes = convertTimeToMinutes(start1);
+  let end1Minutes = convertTimeToMinutes(end1);
+  let start2Minutes = convertTimeToMinutes(start2);
+  let end2Minutes = convertTimeToMinutes(end2);
+  // Handle midnight wraparound by comparing as 24-hour times
+  if (end1Minutes < start1Minutes) end1Minutes += 1440; // Wrap around if
+ 
+  if (end2Minutes < start2Minutes) end2Minutes += 1440; // Wrap around if
+ 
+  return (start1Minutes < end2Minutes && start2Minutes < end1Minutes);
+ }

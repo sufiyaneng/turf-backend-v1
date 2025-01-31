@@ -24,6 +24,14 @@ export const bookingSchema = Joi.object<Booking>({
   endTime: Joi.string().required().label("End Time"),
 });
 
+export const getAllBookingsSchema = Joi.object({
+  type: Joi.string()
+    .valid("UPCOMING", "PREVIOUS", "CANCELLED")
+    .required()
+    .label("Type"),
+    slotDate: Joi.alternatives().try(Joi.string(), Joi.valid(null)).label("Slot Date"),
+})
+
 interface BookingPayload {
   type: "UPCOMING" | "PREVIOUS" | "CANCELLED";
   bookingId: string | null;
@@ -33,17 +41,6 @@ interface BookingPayload {
   bookingDate: string | null;
 }
 
-export const getAllBookingsSchema = Joi.object<BookingPayload>({
-  type: Joi.string()
-    .valid("UPCOMING", "PREVIOUS", "CANCELLED")
-    .required()
-    .label("Type"),
-    bookingId: Joi.alternatives().try(Joi.string(), Joi.valid(null)).label("Booking ID"),
-    limit: Joi.number().integer().positive().required().label("Limit"),
-    offset: Joi.number().integer().positive().required().label("Offset"),
-    slotDate: Joi.alternatives().try(Joi.string(), Joi.valid(null)).label("Slot Date"),
-    bookingDate: Joi.alternatives().try(Joi.string(), Joi.valid(null)).label("Booking Date"),
-});
 
 interface CheckAvailabilityPayload {
   slotDate: string;

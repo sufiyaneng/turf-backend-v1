@@ -5,32 +5,29 @@ import {
   getAllBookingsSchema,
 } from "../validation/booking.schema";
 import Booking from "../models/booking.model";
-import { Request, Response, NextFunction, request } from "express";
-import { convertUtcToIst, formatDateTime } from "../utils";
+import { Request, Response, NextFunction } from "express";
+import {
+  generateTimeSlots,
+  isOverlapping,
+} from "../utils";
 import moment from "moment-timezone";
 import Turf from "../models/turf.model";
 import { ITurf } from "../models/turf.model";
 
 // creating a booking
 export const createBooking = async (req: Request, res: Response) => {
-  try {
-    const { error, value } = bookingSchema.validate(req.body);
-
-    if (error) {
-      throw new BadRequestError({ code: 400, message: error.message });
-    }
-
-    const newBooking = new Booking({ ...value, turfId: req.user.turfId });
-
-    const savedBooking = await newBooking.save();
-
-    res.status(201).json({
-      message: "Booking created successfully",
-      data: savedBooking,
-    });
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: err.message });
+  const { error, value } = bookingSchema.validate(req.body);
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.message });
   }
+
+  const newBooking = new Booking({ ...value, turfId: req.user.turfId });
+  const savedBooking = await newBooking.save();
+
+  res.status(201).json({
+    message: "Booking created successfully",
+    data: savedBooking,
+  });
 };
 
 // Update Booking
@@ -38,86 +35,60 @@ export const updateBooking = async (
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<boolean | any> => {
-  try {
-    const { bookingId } = req.params;
-    const { error, value } = bookingSchema.validate(req.body);
-
-    if (error) {
-      throw new BadRequestError({ code: 400, message: error.message });
-    }
-
-    const updatedBooking = await Booking.findByIdAndUpdate(bookingId, value);
-
-    if (!updatedBooking) {
-      throw new BadRequestError({ code: 404, message: "Booking not found" });
-    }
-
-    res.status(201).json({
-      message: "Booking updated successfully",
-      data: updatedBooking,
-    });
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: err.message });
+) => {
+  const { bookingId } = req.params;
+  const { error, value } = bookingSchema.validate(req.body);
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.message });
   }
+
+  const updatedBooking = await Booking.findByIdAndUpdate(bookingId, value);
+  if (!updatedBooking) {
+    throw new BadRequestError({ code: 404, message: "Booking not found" });
+  }
+
+  res.status(201).json({
+    message: "Booking updated successfully",
+    data: updatedBooking,
+  });
 };
 
 // Delete Booking
-export const deleteBooking = async (
-  req: Request,
-  res: Response
-): Promise<boolean | any> => {
-  try {
-    const { bookingId } = req.params;
+export const deleteBooking = async (req: Request, res: Response) => {
+  const { bookingId } = req.params;
 
-    const deletedBooking = await Booking.findByIdAndDelete(bookingId);
-
-    if (!deletedBooking) {
-      throw new BadRequestError({ code: 404, message: "Booking not found" });
-    }
-
-    res.status(200).json({
-      message: "Booking deleted successfully",
-    });
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: err.message });
+  const deletedBooking = await Booking.findByIdAndDelete(bookingId);
+  if (!deletedBooking) {
+    throw new BadRequestError({ code: 404, message: "Booking not found" });
   }
+
+  res.status(200).json({
+    message: "Booking deleted successfully",
+  });
 };
 
-// Turf name API
+export const getTurfName = async (req: Request, res: Response) => {
+  const { turfId } = req.user;
 
-// export const getTurfName = async (
-//   req: Request,
-//   res: Response
-// ): Promise<boolean | any> => {
-//   try {
-//     const { turfId } = req.params;
-//     // Find the booking by ID and populate the turf name
-//     const booking = await Booking.findOne({ turfId }).populate(
-//       "turfId",
-//       "name"
-//     );
-//     if (!booking) {
-//       throw new BadRequestError({ code: 404, message: "Turf not found" });
-//     }
-//     const { name } = turf as ITurf;
-//     res.status(200).json({
-//       data: {
-//         turfName: name,
-//       },
-//     });
-//     // // Respond with the turf name
-//     // res.status(200).json({
-//     //   message: "Turf name retrieved successfully",
-//     //   data: booking,
-//     // });
-//   } catch (err: any) {
-//     throw new BadRequestError({ code: 500, message: err.message });
-//   }
-// };
+  const turf = await Turf.findOne({ turfId }).populate("turfId", "name");
+  if (!turf) {
+    throw new BadRequestError({ code: 404, message: "Turf not found" });
+  }
+
+  const { name } = turf as ITurf;
+  res.status(200).json({
+    data: {
+      turfName: name,
+    },
+  });
+};
 
 export const getAllBookings = async (req: Request, res: Response) => {
-  const { type, slotDate } = req.body;
+  const { error, value } = getAllBookingsSchema.validate(req.body);
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.details[0].message });
+  }
+  const { type, slotDate } = value;
 
   const isoDate = moment.utc(slotDate, "DD-MM-YYYY").toISOString();
 
@@ -125,44 +96,49 @@ export const getAllBookings = async (req: Request, res: Response) => {
     slotDate: isoDate,
   };
 
-  try {
-    const response = await Booking.find(query);
+  const response = await Booking.find(query);
 
-    const bookings =
-      response &&
-      response.filter((booking: any) => {
-        const cTime = moment().format("hh:mmA");
+  const bookings =
+    response &&
+    response.filter((booking: any) => {
+      const cTime = moment().format("hh:mmA");
 
-        const startTime = moment(booking.startTime, "hh:mmA");
-        const currentTime = moment(cTime, "hh:mmA");
+      const startTime = moment(booking.startTime, "hh:mmA");
+      const currentTime = moment(cTime, "hh:mmA");
 
-        if (type === "UPCOMING") return startTime.isAfter(currentTime);
-        else if (type === "PREVIOUS") return startTime.isBefore(currentTime);
-      });
+      if (type === "UPCOMING") return startTime.isAfter(currentTime);
+      else if (type === "PREVIOUS") return startTime.isBefore(currentTime);
+    });
 
-    res.status(200).json(bookings);
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: err.message });
-  }
+  res.status(200).json(bookings);
 };
 
 export const checkAvailability = async (req: Request, res: Response) => {
-  try {
-    const { value, error } = checkAvailabilitySchema.validate(req.body);
-    if (error)
-      throw new BadRequestError({
-        code: 400,
-        message: error.details[0].message,
-      });
+  const { value, error } = checkAvailabilitySchema.validate(req.body);
+  if (error)
+    throw new BadRequestError({ code: 400, message: error.details[0].message });
 
-    res.status(200).json({ message: "Slot is available" });
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: err.message });
-  }
+  const allPossibleSlots = generateTimeSlots("08:00", "00:00", value.hours);
+  const bookings = await Booking.find({
+    slotDate: moment.utc(value.slotDate, "YYYY-MM-DD").toDate(),
+  });
+
+  const availableSlots = allPossibleSlots.filter((slot: any) => {
+    return !bookings.some((booking) => {
+      return isOverlapping(
+        slot.startTime,
+        slot.endTime,
+        booking.startTime,
+        booking.endTime
+      );
+    });
+  });
+
+  res.status(200).json({ slots: availableSlots });
 };
 
 export const getBookingStats = async (req: Request, res: Response) => {
-  try {
+
     const todayDate = moment().tz("UTC").startOf("day").toDate();
     const tomorrowDate = moment()
       .tz("UTC")
@@ -208,9 +184,6 @@ export const getBookingStats = async (req: Request, res: Response) => {
       });
     }
 
-    res.json(response);
-  } catch (error) {
-    console.error("Error fetching bookings:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
+    res.status(200).json(response);
+  
 };
