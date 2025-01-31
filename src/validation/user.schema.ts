@@ -44,6 +44,15 @@ export const signupSchema = Joi.object({
     }),
 });
 
+export const verifyEmailSchema = Joi.object({
+  userId: Joi.string().required().messages({
+    "any.required": "User ID is required.",
+  }),
+  verificationCode: Joi.string().required().messages({
+    "any.required": "User ID is required.",
+  }),
+});
+
 export const loginSchema = Joi.object({
   email: Joi.string().email().required().messages({
     "string.email": "Email must be a valid email address.",

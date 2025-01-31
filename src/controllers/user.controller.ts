@@ -8,6 +8,7 @@ import {
   loginSchema,
   resetPasswordSchema,
   signupSchema,
+  verifyEmailSchema,
 } from "../validation/user.schema";
 import BadRequestError from "../middlewares/BadRequestError";
 import { generateTokens, generateVerificationCode, sendEmail } from "../utils";
@@ -56,31 +57,32 @@ export const signup = async (req: Request, res: Response) => {
   });
 };
 
-export const verifyEmail = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const { userId, verificationCode } = req.body;
-
-  try {
-    const user = (await User.findOne({
-      _id: userId,
-      verificationCode,
-    })) as IUser;
-
-    if (!user) {
-      res.status(400).json({ message: "Invalid verification code or email." });
-      return;
-    }
-
-    user.isVerified = true;
-    user.verificationCode = "";
-    await user.save();
-
-    res.status(200).json({ message: "Email verified successfully." });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err });
+export const verifyEmail = async (req: Request, res: Response) => {
+  const { error, value } = verifyEmailSchema.validate(req.body);
+  if (error) {
+    throw new BadRequestError({
+      code: 400,
+      message: error.details[0].message,
+    });
   }
+  const { userId, verificationCode } = value;
+
+  const user = (await User.findOne({
+    _id: userId,
+    verificationCode,
+  })) as IUser;
+  if (!user) {
+    throw new BadRequestError({
+      code: 400,
+      message: "Invalid verification code.",
+    });
+  }
+
+  user.isVerified = true;
+  user.verificationCode = "";
+  await user.save();
+
+  res.status(200).json({ message: "Email verified!" });
 };
 
 export const login = async (req: Request, res: Response) => {
@@ -137,6 +139,61 @@ export const login = async (req: Request, res: Response) => {
   });
 };
 
+export const forgotPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { error, value } = forgotPasswordSchema.validate(req.body);
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.details[0].message });
+  }
+
+  const { email } = value;
+
+  const user = await User.findOne({ email });
+  if (!user)
+    throw new BadRequestError({
+      code: 404,
+      message: "User does not exist with this email.",
+    });
+
+  const resetPassCode = generateVerificationCode(12);
+  user.resetPassCode = resetPassCode;
+  await user.save();
+
+  sendEmail(
+    "makwork985@gmail.com",
+    "Email Verification",
+    `<html><a href="http://localhost:3000/auth/reset-password/${user._id}/${resetPassCode}">Reset Password</a></html>`
+  );
+
+  res.status(200).json({ message: "Password reset link sent to your mail." });
+};
+
+export const resetPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { error, value }: { error: any; value: any } =
+    resetPasswordSchema.validate(req.body);
+  if (error) {
+    throw new BadRequestError({ code: 400, message: error.details[0].message });
+  }
+  const { userId, password, resetPassCode } = value;
+  try {
+    const user = (await User.findOne({
+      _id: userId,
+      resetPassCode,
+    })) as IUser;
+    user.password = password;
+    console.log(user);
+    await user.save();
+    res.status(200).json({ message: "Password reset successful." });
+  } catch (err: any) {
+    throw new BadRequestError({ code: 500, message: "Internal server error." });
+  }
+};
+
 export const refreshToken = async (
   req: Request,
   res: Response
@@ -181,63 +238,5 @@ export const refreshToken = async (
       code: 401,
       message: "Invalid or expired refresh token.",
     });
-  }
-};
-
-export const forgotPassword = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const { error, value }: { error: any; value: any } =
-    forgotPasswordSchema.validate(req.body);
-  if (error) {
-    throw new BadRequestError({ code: 400, message: error.details[0].message });
-  }
-  const { email } = value;
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user)
-      throw new BadRequestError({
-        code: 400,
-        message: error?.details?.[0]?.message,
-      });
-    const resetPassCode = generateVerificationCode(12);
-
-    user.resetPassCode = resetPassCode;
-    await user.save();
-    sendEmail(
-      "makwork985@gmail.com",
-      "Email Verification",
-      `<a href="http://localhost:3000/auth/reset-password/${user._id}/${resetPassCode}">Reset Password</a>`
-    );
-
-    res.status(200).json({ message: "Password reset link sent to your mail." });
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: "Internal server error." });
-  }
-};
-
-export const resetPassword = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const { error, value }: { error: any; value: any } =
-    resetPasswordSchema.validate(req.body);
-  if (error) {
-    throw new BadRequestError({ code: 400, message: error.details[0].message });
-  }
-  const { userId, password, resetPassCode } = value;
-  try {
-    const user = (await User.findOne({
-      _id: userId,
-      resetPassCode,
-    })) as IUser;
-    user.password = password;
-    console.log(user);
-    await user.save();
-    res.status(200).json({ message: "Password reset successful." });
-  } catch (err: any) {
-    throw new BadRequestError({ code: 500, message: "Internal server error." });
   }
 };
