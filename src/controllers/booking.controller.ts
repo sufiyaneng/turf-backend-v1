@@ -70,7 +70,7 @@ export const deleteBooking = async (req: Request, res: Response) => {
 export const getTurfName = async (req: Request, res: Response) => {
   const { turfId } = req.user;
 
-  const turf = await Turf.findOne({ turfId }).populate("turfId", "name");
+  const turf = await Turf.findById(turfId)
   if (!turf) {
     throw new BadRequestError({ code: 404, message: "Turf not found" });
   }
@@ -78,7 +78,7 @@ export const getTurfName = async (req: Request, res: Response) => {
   const { name } = turf as ITurf;
   res.status(200).json({
     data: {
-      turfName: name,
+      turfName: turf.name,
     },
   });
 };
