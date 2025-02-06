@@ -26,7 +26,7 @@ export const bookingSchema = Joi.object<Booking>({
 
 export const getAllBookingsSchema = Joi.object({
   type: Joi.string()
-    .valid("UPCOMING", "PREVIOUS", "CANCELLED")
+    // .valid("UPCOMING", "PREVIOUS", "CANCELLED")
     .required()
     .label("Type"),
     slotDate: Joi.alternatives().try(Joi.string(), Joi.valid(null)).label("Slot Date"),

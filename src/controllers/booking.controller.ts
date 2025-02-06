@@ -97,20 +97,17 @@ export const getAllBookings = async (req: Request, res: Response) => {
   };
 
   const response = await Booking.find(query);
+  const cTime = moment().format("HH:mm");
 
-  const bookings =
-    response &&
-    response.filter((booking: any) => {
-      const cTime = moment().format("hh:mmA");
-
-      const startTime = moment(booking.startTime, "hh:mmA");
-      const currentTime = moment(cTime, "hh:mmA");
-
-      if (type === "UPCOMING") return startTime.isAfter(currentTime);
-      else if (type === "PREVIOUS") return startTime.isBefore(currentTime);
+  const bookings = response?.filter((booking: any) => {
+      if(type.toString().toUpperCase() === 'UPCOMING'){
+        return booking.startTime > cTime;
+      }else{
+        return booking.startTime < cTime;
+      }
     });
 
-  res.status(200).json(bookings);
+    res.status(200).json(bookings);
 };
 
 export const checkAvailability = async (req: Request, res: Response) => {
