@@ -6,10 +6,7 @@ import {
 } from "../validation/booking.schema";
 import Booking from "../models/booking.model";
 import { Request, Response, NextFunction } from "express";
-import {
-  generateTimeSlots,
-  isOverlapping,
-} from "../utils";
+import { generateTimeSlots, isOverlapping } from "../utils";
 import moment from "moment-timezone";
 import Turf from "../models/turf.model";
 import { ITurf } from "../models/turf.model";
@@ -70,7 +67,7 @@ export const deleteBooking = async (req: Request, res: Response) => {
 export const getTurfName = async (req: Request, res: Response) => {
   const { turfId } = req.user;
 
-  const turf = await Turf.findById(turfId)
+  const turf = await Turf.findById(turfId);
   if (!turf) {
     throw new BadRequestError({ code: 404, message: "Turf not found" });
   }
@@ -100,14 +97,14 @@ export const getAllBookings = async (req: Request, res: Response) => {
   const cTime = moment().format("HH:mm");
 
   const bookings = response?.filter((booking: any) => {
-      if(type.toString().toUpperCase() === 'UPCOMING'){
-        return booking.startTime > cTime;
-      }else{
-        return booking.startTime < cTime;
-      }
-    });
+    if (type.toString().toUpperCase() === "UPCOMING") {
+      return booking.startTime > cTime;
+    } else {
+      return booking.startTime < cTime;
+    }
+  });
 
-    res.status(200).json(bookings);
+  res.status(200).json(bookings);
 };
 
 export const checkAvailability = async (req: Request, res: Response) => {
@@ -135,52 +132,46 @@ export const checkAvailability = async (req: Request, res: Response) => {
 };
 
 export const getBookingStats = async (req: Request, res: Response) => {
+  const todayDate = moment().tz("UTC").startOf("day").toDate();
+  const tomorrowDate = moment()
+    .tz("UTC")
+    .add(1, "days")
+    .startOf("day")
+    .toDate();
+  const yesterdayDate = moment()
+    .tz("UTC")
+    .subtract(1, "days")
+    .startOf("day")
+    .toDate();
 
-    const todayDate = moment().tz("UTC").startOf("day").toDate();
-    const tomorrowDate = moment()
-      .tz("UTC")
-      .add(1, "days")
-      .startOf("day")
-      .toDate();
-    const yesterdayDate = moment()
-      .tz("UTC")
-      .subtract(1, "days")
-      .startOf("day")
-      .toDate();
+  const [todaysBookings, tomorrowsBookings, yesterdaysBookings] =
+    await Promise.all([
+      Booking.countDocuments({ slotDate: { $eq: todayDate } }),
+      Booking.countDocuments({ slotDate: { $eq: tomorrowDate } }),
+      Booking.countDocuments({ slotDate: { $eq: yesterdayDate } }),
+    ]);
 
-    // Fetch booking counts
-    const [todaysBookings, tomorrowsBookings, yesterdaysBookings] =
-      await Promise.all([
-        Booking.countDocuments({ slotDate: { $eq: todayDate } }),
-        Booking.countDocuments({ slotDate: { $eq: tomorrowDate } }),
-        Booking.countDocuments({ slotDate: { $eq: yesterdayDate } }),
-      ]);
+  const now = moment().format("HH:mm");
+  const liveBooking = await Booking.findOne({
+    slotDate: todayDate,
+    startTime: { $lte: now },
+    endTime: { $gte: now },
+  });
+  const response: any[] = [
+    { title: "Today's Booking", count: todaysBookings },
+    { title: "Tomorrow Booking", count: tomorrowsBookings },
+    { title: "Yesterday Booking", count: yesterdaysBookings },
+  ];
 
-    // Find the current live booking
-    const now = moment().tz("UTC").format("hh:mmA");
-    const liveBooking = await Booking.findOne({
-      slotDate: todayDate,
-      startTime: { $lte: now },
-      endTime: { $gte: now },
+  // Add live booking if exists
+  if (liveBooking) {
+    response.push({
+      bookerName: liveBooking.bookerName,
+      startTime: liveBooking.startTime,
+      endTime: liveBooking.endTime,
+      status: "Live",
     });
+  }
 
-    // Prepare response
-    const response: any[] = [
-      { title: "Today's Booking", count: todaysBookings },
-      { title: "Tomorrow Booking", count: tomorrowsBookings },
-      { title: "Yesterday Booking", count: yesterdaysBookings },
-    ];
-
-    // Add live booking if exists
-    if (liveBooking) {
-      response.push({
-        bookerName: liveBooking.bookerName,
-        startTime: liveBooking.startTime,
-        endTime: liveBooking.endTime,
-        status: "Live",
-      });
-    }
-
-    res.status(200).json(response);
-  
+  res.status(200).json(response);
 };
