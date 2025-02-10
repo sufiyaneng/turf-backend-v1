@@ -111,14 +111,14 @@ export const editUserProfile = async (
 export const editTurfProfile = async (req: Request, res: Response) => {
   const { userId } = req.user;
   const { name, address, openAt, closeAt, daysOpen } = req.body;
-  let turfImageUrl = "";
+  let imageTurf = "";
 
   if (req.file) {
-    turfImageUrl = await cloudinaryUploadImage(req.file.path);
+    imageTurf = await cloudinaryUploadImage(req.file.path);
   }
   const updatedTurf = await Turf.findOneAndUpdate(
     { user: userId },
-    { name, address, openAt, closeAt, daysOpen, turfImage: turfImageUrl },
+    { name, address, openAt, closeAt, daysOpen, turfImage: imageTurf },
     { new: true }
   );
 
