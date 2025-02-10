@@ -2,6 +2,7 @@ import BadRequestError from "../middlewares/BadRequestError";
 import { Request, Response } from "express";
 import User from "../models/user.model";
 import Turf from "../models/turf.model";
+import { cloudinaryUploadImage } from "../utils/cloudnary";
 
 // Get User Profile Details
 export const getUserProfileDetails = async (req: Request, res: Response) => {
@@ -87,8 +88,7 @@ export const editUserProfile = async (
   let userImageUrl = "";
 
   if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    userImageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+    userImageUrl = await cloudinaryUploadImage(req.file.path);
   }
 
   const updatedUser = await User.findByIdAndUpdate(
@@ -114,10 +114,8 @@ export const editTurfProfile = async (req: Request, res: Response) => {
   let turfImageUrl = "";
 
   if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    turfImageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+    turfImageUrl = await cloudinaryUploadImage(req.file.path);
   }
-
   const updatedTurf = await Turf.findOneAndUpdate(
     { user: userId },
     { name, address, openAt, closeAt, daysOpen, turfImage: turfImageUrl },
